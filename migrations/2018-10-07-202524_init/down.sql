@@ -1,0 +1,42 @@
+-- This file should undo anything in `up.sql`
+ALTER TABLE `Map` DROP FOREIGN KEY `Map_fk0`;
+
+ALTER TABLE `Replay` DROP FOREIGN KEY `Replay_fk0`;
+
+ALTER TABLE `Score` DROP FOREIGN KEY `Score_fk0`;
+
+ALTER TABLE `Score` DROP FOREIGN KEY `Score_fk1`;
+
+ALTER TABLE `UserStat` DROP FOREIGN KEY `UserStat_fk0`;
+
+ALTER TABLE `UserBadge` DROP FOREIGN KEY `UserBadge_fk0`;
+
+ALTER TABLE `UserBadge` DROP FOREIGN KEY `UserBadge_fk1`;
+
+ALTER TABLE `PasswordReset` DROP FOREIGN KEY `PasswordReset_fk0`;
+
+ALTER TABLE `UserRole` DROP FOREIGN KEY `UserRole_fk0`;
+
+ALTER TABLE `UserRole` DROP FOREIGN KEY `UserRole_fk1`;
+
+DROP TABLE IF EXISTS `User`;
+
+DROP TABLE IF EXISTS `Role`;
+
+DROP TABLE IF EXISTS `Map`;
+
+DROP TABLE IF EXISTS `Replay`;
+
+DROP TABLE IF EXISTS `Score`;
+
+DROP TABLE IF EXISTS `MapStatus`;
+
+DROP TABLE IF EXISTS `UserStat`;
+
+DROP TABLE IF EXISTS `Badge`;
+
+DROP TABLE IF EXISTS `UserBadge`;
+
+DROP TABLE IF EXISTS `PasswordReset`;
+
+DROP TABLE IF EXISTS `UserRole`;
