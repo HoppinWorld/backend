@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 rocket = "0.3"
 rocket_codegen = "0.3"
-diesel = { version = "1.3.2", features = ["mysql","r2d2","chrono"] }
+diesel = { version = "1.3.3", features = ["mysql","r2d2","chrono"] }
 dotenv = "0.11.0"
 serde = "1.0"
 serde_derive = "1.0"
@@ -19,3 +19,4 @@ log = "0.4.3"
 interpolate_idents = "0.2.5"
 bcrypt = "0.2.0"
 chrono = "0.4.4"
+backend_utils = { git = "https://github.com/jojolepro/backend-utils-rs" }

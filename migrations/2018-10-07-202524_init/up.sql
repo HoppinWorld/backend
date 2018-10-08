@@ -1,109 +1,110 @@
--- Your SQL goes here
-CREATE TABLE `User` (
+CREATE TABLE `user` (
 	`id` int NOT NULL AUTO_INCREMENT,
-	`username` varchar NOT NULL,
-	`email` varchar NOT NULL,
-	`password` varchar NOT NULL,
-	`token` varchar,
+	`username` varchar(64) NOT NULL UNIQUE,
+	`email` varchar(64) NOT NULL UNIQUE,
+	`password` varchar(64),
+	`token` varchar(64),
 	PRIMARY KEY (`id`)
 );
 
-CREATE TABLE `Role` (
+CREATE TABLE `role` (
 	`id` int NOT NULL AUTO_INCREMENT,
-	`friendly_name` varchar NOT NULL,
-	`display_name` varchar NOT NULL,
+	`friendly_name` varchar(64) NOT NULL,
+	`display_name` varchar(64) NOT NULL,
 	PRIMARY KEY (`id`)
 );
 
-CREATE TABLE `Map` (
+CREATE TABLE `map` (
 	`id` int NOT NULL AUTO_INCREMENT,
-	`status` int NOT NULL,
-	`name` varchar NOT NULL,
+	`status` varchar(64) NOT NULL,
+	`name` varchar(64) NOT NULL,
 	`segment_count` bit NOT NULL,
-	`path` varchar,
+	`path` varchar(64),
 	PRIMARY KEY (`id`)
 );
 
-CREATE TABLE `Replay` (
+CREATE TABLE `replay` (
 	`id` int NOT NULL AUTO_INCREMENT,
 	`scoreid` int NOT NULL,
-	`path` varchar NOT NULL,
+	`path` varchar(64) NOT NULL,
 	PRIMARY KEY (`id`)
 );
 
-CREATE TABLE `Score` (
+CREATE TABLE `score` (
 	`id` int NOT NULL AUTO_INCREMENT,
 	`userid` int NOT NULL,
 	`mapid` int NOT NULL,
-	`segment_times` varchar NOT NULL,
+	`segment_times` varchar(64) NOT NULL,
 	`strafes` int,
 	`jumps` int,
 	`total_time` FLOAT NOT NULL,
 	`max_speed` FLOAT NOT NULL,
 	`average_speed` FLOAT NOT NULL,
+	`season` int NOT NULL,
 	PRIMARY KEY (`id`)
 );
 
-CREATE TABLE `MapStatus` (
-	`id` int NOT NULL AUTO_INCREMENT,
-	`friendly_name` varchar NOT NULL,
-	`display_name` varchar NOT NULL,
-	PRIMARY KEY (`id`)
-);
-
-CREATE TABLE `UserStat` (
+CREATE TABLE `user_stat` (
 	`id` int NOT NULL AUTO_INCREMENT,
 	`userid` int NOT NULL,
-	`jumps` bigint NOT NULL,
-	`strafes` bigint NOT NULL,
+	`jumps` bigint NOT NULL DEFAULT '0',
+	`strafes` bigint NOT NULL DEFAULT '0',
 	PRIMARY KEY (`id`)
 );
 
-CREATE TABLE `Badge` (
+CREATE TABLE `badge` (
 	`id` int NOT NULL AUTO_INCREMENT,
-	`friendly_name` varchar NOT NULL,
-	`display_name` varchar NOT NULL,
+	`friendly_name` varchar(64) NOT NULL,
+	`display_name` varchar(64) NOT NULL,
 	PRIMARY KEY (`id`)
 );
 
-CREATE TABLE `UserBadge` (
+CREATE TABLE `user_badge` (
 	`id` int NOT NULL AUTO_INCREMENT,
 	`userid` int NOT NULL,
 	`badgeid` int NOT NULL,
 	PRIMARY KEY (`id`)
 );
 
-CREATE TABLE `PasswordReset` (
+CREATE TABLE `password_reset` (
 	`id` int NOT NULL AUTO_INCREMENT,
 	`userid` int NOT NULL,
-	`token` varchar NOT NULL,
+	`token` varchar(64) NOT NULL,
 	`valid_until` DATETIME NOT NULL,
 	PRIMARY KEY (`id`)
 );
 
-CREATE TABLE `UserRole` (
+CREATE TABLE `user_role` (
 	`id` int NOT NULL AUTO_INCREMENT,
 	`userid` int NOT NULL,
 	`roleid` int NOT NULL,
 	PRIMARY KEY (`id`)
 );
 
-ALTER TABLE `Map` ADD CONSTRAINT `Map_fk0` FOREIGN KEY (`status`) REFERENCES `MapStatus`(`id`);
+CREATE TABLE `season` (
+	`id` int NOT NULL AUTO_INCREMENT,
+	`display_name` varchar(64) NOT NULL UNIQUE,
+	`friendly_name` varchar(64) NOT NULL UNIQUE,
+	`ends_at` DATETIME,
+	PRIMARY KEY (`id`)
+);
 
-ALTER TABLE `Replay` ADD CONSTRAINT `Replay_fk0` FOREIGN KEY (`scoreid`) REFERENCES `Score`(`id`);
+ALTER TABLE `replay` ADD CONSTRAINT `replay_fk0` FOREIGN KEY (`scoreid`) REFERENCES `score`(`id`);
 
-ALTER TABLE `Score` ADD CONSTRAINT `Score_fk0` FOREIGN KEY (`userid`) REFERENCES `User`(`id`);
+ALTER TABLE `score` ADD CONSTRAINT `score_fk0` FOREIGN KEY (`userid`) REFERENCES `user`(`id`);
 
-ALTER TABLE `Score` ADD CONSTRAINT `Score_fk1` FOREIGN KEY (`mapid`) REFERENCES `Map`(`id`);
+ALTER TABLE `score` ADD CONSTRAINT `score_fk1` FOREIGN KEY (`mapid`) REFERENCES `map`(`id`);
 
-ALTER TABLE `UserStat` ADD CONSTRAINT `UserStat_fk0` FOREIGN KEY (`userid`) REFERENCES `User`(`id`);
+ALTER TABLE `score` ADD CONSTRAINT `score_fk2` FOREIGN KEY (`season`) REFERENCES `season`(`id`);
 
-ALTER TABLE `UserBadge` ADD CONSTRAINT `UserBadge_fk0` FOREIGN KEY (`userid`) REFERENCES `User`(`id`);
+ALTER TABLE `user_stat` ADD CONSTRAINT `user_stat_fk0` FOREIGN KEY (`userid`) REFERENCES `user`(`id`);
 
-ALTER TABLE `UserBadge` ADD CONSTRAINT `UserBadge_fk1` FOREIGN KEY (`badgeid`) REFERENCES `Badge`(`id`);
+ALTER TABLE `user_badge` ADD CONSTRAINT `user_badge_fk0` FOREIGN KEY (`userid`) REFERENCES `user`(`id`);
 
-ALTER TABLE `PasswordReset` ADD CONSTRAINT `PasswordReset_fk0` FOREIGN KEY (`userid`) REFERENCES `User`(`id`);
+ALTER TABLE `user_badge` ADD CONSTRAINT `user_badge_fk1` FOREIGN KEY (`badgeid`) REFERENCES `badge`(`id`);
 
-ALTER TABLE `UserRole` ADD CONSTRAINT `UserRole_fk0` FOREIGN KEY (`userid`) REFERENCES `User`(`id`);
+ALTER TABLE `password_reset` ADD CONSTRAINT `password_reset_fk0` FOREIGN KEY (`userid`) REFERENCES `user`(`id`);
 
-ALTER TABLE `UserRole` ADD CONSTRAINT `UserRole_fk1` FOREIGN KEY (`roleid`) REFERENCES `Role`(`id`);
+ALTER TABLE `user_role` ADD CONSTRAINT `user_role_fk0` FOREIGN KEY (`userid`) REFERENCES `user`(`id`);
+
+ALTER TABLE `user_role` ADD CONSTRAINT `user_role_fk1` FOREIGN KEY (`roleid`) REFERENCES `role`(`id`);
