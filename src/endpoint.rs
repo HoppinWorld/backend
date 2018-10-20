@@ -111,7 +111,7 @@ pub fn register(db: DbConn, register: Json<UserInsert>) -> Result<(), ReturnStat
             // Unwrap should be safe, as we inserted into the db just a split second ago.
             let user = user_from_email(&db, &register.email).unwrap();
             let password_reset = PasswordResetInsert {
-                token: token.to_string(),
+                token: token.to_string().clone(),
                 userid: user.id,
                 valid_until: limit.naive_local(),
             };
@@ -124,11 +124,13 @@ pub fn register(db: DbConn, register: Json<UserInsert>) -> Result<(), ReturnStat
                     // Send email
                     let email = EmailBuilder::new()
                         // Addresses can be specified by the tuple (email, alias)
-                        .to("jojolepromain@gmail.com")
+                        //.to("jojolepromain@gmail.com")
+                        // TODO: Fix email sending. My ip raidable.ddns.net might be blocked
+                        .to("jojolepro@hoppinworld.net")
                         // ... or by an address only
                         .from("noreply@hoppinworld.net")
                         .subject("Hi, Hello world")
-                        .text("Hello world.")
+                        .text(format!("Here's the password reset token: {}",token.to_string()))
                         //.html()
                         .build()
                         .unwrap();
