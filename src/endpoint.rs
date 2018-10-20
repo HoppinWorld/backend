@@ -6,7 +6,8 @@ use uuid::Uuid;
 use rocket::http::Status;
 use rocket_contrib::Json;
 use rocket::{Outcome, Request};
-
+use lettre_email::EmailBuilder;
+use lettre::{ClientSecurity, EmailAddress, Envelope, SendableEmail, SmtpClient, Transport, SmtpTransport, SendmailTransport};
 
 pub struct UserLogged {
     pub user: User,
@@ -119,7 +120,43 @@ pub fn register(db: DbConn, register: Json<UserInsert>) -> Result<(), ReturnStat
                 password_reset
             );
             match password_reset_insert_or_replace(&db, password_reset) {
-                Ok(_) => Ok(()),
+                Ok(_) => {
+                    // Send email
+                    let email = EmailBuilder::new()
+                        // Addresses can be specified by the tuple (email, alias)
+                        .to("jojolepromain@gmail.com")
+                        // ... or by an address only
+                        .from("noreply@hoppinworld.net")
+                        .subject("Hi, Hello world")
+                        .text("Hello world.")
+                        //.html()
+                        .build()
+                        .unwrap();
+
+                    /*let mut mailer = SmtpClient::simple_builder("server.tld").unwrap()
+                        // Set the name sent during EHLO/HELO, default is `localhost`
+                        .hello_name(ClientId::Domain("my.hostname.tld".to_string()))
+                        // Add credentials for authentication
+                        .credentials(Credentials::new("username".to_string(), "password".to_string()))
+                        // Enable SMTPUTF8 if the server supports it
+                        .smtp_utf8(true)
+                        // Configure expected authentication mechanism
+                        .authentication_mechanism(Mechanism::Plain)
+                        // Enable connection reuse
+                        .connection_reuse(ConnectionReuseParameters::ReuseUnlimited).build();*/
+                    //let mut mailer = SmtpClient::new_unencrypted_localhost().unwrap().transport();
+                    //let mailer = SmtpTransport::simple_builder("hoppinworld.net");
+                    //let mut mailer = SendmailTransport::new();
+                    //let mailer = SmtpClient::new_simple("127.0.0.1")
+                    let mailer = SmtpClient::new("127.0.0.1:25", ClientSecurity::None)
+                        .unwrap()
+                        .transport()
+                        .send(email.into())
+                        .unwrap();
+                    //mailer.send(email.into()).expect("failed to send mail");
+                    //mailer.close();
+                    Ok(())
+                },
                 Err(e) => {
                     error!("Failed to create password reset entry: {:?}", e);
                     Err(ReturnStatus::new(Status::InternalServerError))
@@ -182,4 +219,76 @@ fn logout(user: UserLogged, db: DbConn) -> Result<(), ReturnStatus> {
         }
     }
 }
+
+
+#[post("/submitscore", format = "application/json", data = "<data>")]
+fn submit_score(user: UserLogged, db: DbConn, data: Json<ScoreInsertRequest>) -> Result<Json<bool>, ReturnStatus> {
+    let userid = user.user.id;
+    let season = 1;
+
+    // Map exists?
+    let map = map_from_id(&db, data.mapid);
+    match map{
+        Ok(_) => {
+            // Is it the best score of the user on this map. Minimal time.
+            let best_previous = score_from_user_map(&db, userid, data.mapid, season);
+            match best_previous {
+                Ok(bp) => {
+                    if data.total_time < bp.total_time {
+                        // New personnal best score
+                    } else {
+                        // Not a new personnal best.
+                        return Ok(Json(false));
+                    }
+                }
+                Err(diesel::result::Error::NotFound) => {
+                    // No previous personnal best
+                }
+                Err(e) => {
+                    error!("Failed to query database score_from_user_map: {}", e);
+                    return Err(ReturnStatus::new(Status::InternalServerError));
+                }
+            }
+            // TODO: Validate score https://github.com/HoppinWorld/scorevalidator
+            let valid = true;
+
+            if valid {
+                let segment_times = segment_scores_to_string(&data.segment_times);
+
+                let score_insert = ScoreInsert {
+                    userid,
+                    mapid: data.mapid,
+                    segment_times,
+                    strafes: data.strafes,
+                    jumps: data.jumps,
+                    total_time: data.total_time,
+                    max_speed: data.max_speed,
+                    average_speed: data.average_speed,
+                    season,
+                };
+                match score_insert_or_replace(&db, score_insert) {
+                    Ok(_) => {
+                        Ok(Json(true))
+                    }
+                    Err(e) => {
+                        error!("Failed to insert score: {}", e);
+                        return Err(ReturnStatus::new(Status::InternalServerError));
+                    }
+                }
+            } else {
+                // TODO: Cheater likeliness update, or check validator works properly
+
+                Ok(Json(false))
+            }
+        },
+        Err(diesel::result::Error::NotFound) => {
+            Err(ReturnStatus::new(Status::BadRequest).with_message("Invalid map id".to_string()))
+        }
+        Err(e) => {
+            error!("Failed to query database map: {}", e);
+            return Err(ReturnStatus::new(Status::InternalServerError));
+        }
+    }
+}
+
 

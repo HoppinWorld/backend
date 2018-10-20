@@ -59,3 +59,65 @@ pub struct LoginRequest{
 pub struct LoginResult {
     pub token: String,
 }
+
+#[derive(Queryable)]
+pub struct Score {
+    pub id: i32,
+    pub userid: i32,
+    pub mapid: i32,
+    pub segment_times: String, // 0.22344,2233.34,..
+    pub strafes: i32,
+    pub jumps: i32,
+    /// Seconds
+    pub total_time: f32,
+    pub max_speed: f32,
+    pub average_speed: f32,
+    pub seasonid: i32,
+}
+
+#[derive(Deserialize)]
+pub struct ScoreInsertRequest {
+    pub mapid: i32,
+    pub segment_times: Vec<f32>,
+    pub strafes: i32,
+    pub jumps: i32,
+    /// Seconds
+    pub total_time: f32,
+    pub max_speed: f32,
+    pub average_speed: f32,
+}
+
+#[derive(Insertable)]
+#[table_name = "score"]
+pub struct ScoreInsert {
+    pub userid: i32,
+    pub mapid: i32,
+    pub segment_times: String,
+    pub strafes: i32,
+    pub jumps: i32,
+    /// Seconds
+    pub total_time: f32,
+    pub max_speed: f32,
+    pub average_speed: f32,
+    pub season: i32,
+}
+
+#[derive(Queryable, Debug, Deserialize, Serialize)]
+pub struct Map {
+    pub id: i32,
+    pub status: String,
+    pub name: String,
+    pub segment_count: i32,
+    /// If the map gets removed, the path will be null.
+    /// Maps that get outdated following updates will be deleted from the servers and the path will be null?
+    /// not sure if this should be the case.
+    pub path: Option<String>,
+}
+
+#[derive(Queryable)]
+pub struct Season {
+    pub id: i32,
+    pub display_name: String,
+    pub friendly_name: String,
+    pub ends_at: Option<NaiveDateTime>,
+}

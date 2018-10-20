@@ -18,6 +18,8 @@ extern crate uuid;
 extern crate log;
 extern crate chrono;
 extern crate backend_utils;
+extern crate lettre;
+extern crate lettre_email;
 
 
 use chrono::offset::Local;
@@ -68,7 +70,8 @@ fn main() {
             routes![
                 login,
                 register,
-                change_password
+                change_password,
+                submit_score,
             ],
         )
         .attach(options)

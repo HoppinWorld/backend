@@ -61,3 +61,42 @@ pub fn user_from_password_reset_token(db: &DbConn, token: &String) -> DieselResu
         .map(|t| t.1)
 }
 
+pub fn map_from_id(db: &DbConn, id: i32) -> DieselResult<Map> {
+    map::table
+        .filter(map::id.eq(id))
+        .first::<Map>(&**db)
+}
+
+pub fn score_from_user_map(db: &DbConn, userid: i32, mapid: i32, season: i32) -> DieselResult<Score> {
+    score::table
+        .filter(score::userid.eq(userid))
+        .filter(score::mapid.eq(mapid))
+        .filter(score::season.eq(season))
+        .first::<Score>(&**db)
+}
+
+pub fn score_insert_or_replace(db: &DbConn, score: ScoreInsert) -> DieselResult<usize> {
+    diesel::replace_into(score::table)
+        .values(score)
+        .execute(&**db)
+}
+
+/// []
+/// [1,2,3]
+pub fn segment_scores_to_string(vec: &Vec<f32>) -> String {
+    let mut tmp = vec.iter().fold(String::new(), |a, e| a + &e.to_string() + ",");
+    // Remove last ","
+    tmp.pop();
+    tmp
+}
+
+pub fn segment_scores_from_string(data: &String) -> Option<Vec<f32>> {
+    let mut try_seg_times = data.split(",").map(|s| s.parse::<f32>());
+    let err = try_seg_times.find(|e| e.is_err()).is_some();
+    if err {
+        None
+    } else {
+        Some(try_seg_times.map(|e| e.unwrap()).collect::<Vec<_>>())
+    }
+}
+

@@ -11,7 +11,7 @@ table! {
         id -> Integer,
         status -> Varchar,
         name -> Varchar,
-        segment_count -> Bit,
+        segment_count -> Integer,
         path -> Nullable<Varchar>,
     }
 }
@@ -47,8 +47,8 @@ table! {
         userid -> Integer,
         mapid -> Integer,
         segment_times -> Varchar,
-        strafes -> Nullable<Integer>,
-        jumps -> Nullable<Integer>,
+        strafes -> Integer,
+        jumps -> Integer,
         total_time -> Float,
         max_speed -> Float,
         average_speed -> Float,
