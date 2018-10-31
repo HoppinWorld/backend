@@ -21,31 +21,6 @@ extern crate backend_utils;
 extern crate lettre;
 extern crate lettre_email;
 
-
-use chrono::offset::Local;
-use chrono::Duration;
-use diesel::prelude::*;
-use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
-use dotenv::dotenv;
-use rocket::http::{Cookies, Status};
-use rocket::request::{self, Form, FromRequest};
-use rocket::response::content::Html;
-use rocket::response::Redirect;
-use rocket::Rocket;
-use rocket::{Outcome, Request, State};
-use rocket_contrib::Json;
-use rocket_cors::{AllowedHeaders, AllowedOrigins, Cors};
-use std::env;
-use std::fmt::{self, Display, Formatter};
-use std::ops::Deref;
-use rocket::http::Method;
-use rocket::response::status;
-use rocket::response::status::BadRequest;
-use rocket::response::Responder;
-use rocket::Response;
-use uuid::Uuid;
-
-
 pub use backend_utils::*;
 
 mod schema;
@@ -55,9 +30,6 @@ mod endpoint;
 pub use self::model::*;
 pub use self::db::*;
 pub use self::endpoint::*;
-
-
-
 
 
 
@@ -72,6 +44,10 @@ fn main() {
                 register,
                 change_password,
                 submit_score,
+                map_scores,
+                user_score_for_map,
+                list_maps,
+                map_info,
             ],
         )
         .attach(options)

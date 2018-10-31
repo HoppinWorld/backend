@@ -28,6 +28,7 @@ impl<'a, 'r> FromRequest<'a, 'r> for UserLogged {
         if let Some(token) = token {
             let token = token.trim();
             if !token.starts_with("Bearer ") {
+                info!("User failed token login with token: {}", token);
                 return Outcome::Failure((Status::BadRequest, ()));
             }
             let token = &token[7..]; // Possible DOS, mitigated by trim()
@@ -36,9 +37,11 @@ impl<'a, 'r> FromRequest<'a, 'r> for UserLogged {
             if let Ok(u) = user {
                 Outcome::Success(UserLogged { user: u})
             } else {
+                info!("User attempted to login with invalid bearer token: {}", token);
                 Outcome::Failure((Status::Unauthorized, ()))
             }
         } else {
+            info!("User attempted to use secure route without Bearer header.");
             Outcome::Failure((Status::Unauthorized, ()))
         }
     }
@@ -284,6 +287,7 @@ fn submit_score(user: UserLogged, db: DbConn, data: Json<ScoreInsertRequest>) ->
             }
         },
         Err(diesel::result::Error::NotFound) => {
+            info!("User submitted score for invalid map id: {}", data.mapid);
             Err(ReturnStatus::new(Status::BadRequest).with_message("Invalid map id".to_string()))
         }
         Err(e) => {
@@ -293,4 +297,80 @@ fn submit_score(user: UserLogged, db: DbConn, data: Json<ScoreInsertRequest>) ->
     }
 }
 
+/// Returns top 25 scores on a map
+#[get("/map/<mapid>/scores")]
+fn map_scores(db: DbConn, mapid: i32) -> Result<Json<Vec<ScoreDisplay>>, ReturnStatus> {
+    let season = 1;
+    match score_top_from_map(&db, mapid, season) {
+        Ok(scores) => {
+            let score_displays = scores.iter().flat_map(|score| {
+                if let Ok(username) = user_from_id(&db, score.userid).map(|u| u.username){
+                    Some(ScoreDisplay {
+                        userid: score.userid,
+                        username: username,
+                        segment_times: score.segment_times.clone(),
+                        strafes: score.strafes,
+                        jumps: score.jumps,
+                        total_time: score.total_time,
+                    })
+                } else {
+                    None
+                }
+            }).collect::<Vec<_>>();
+            Ok(Json(score_displays))
+        }
+        Err(e) => {
+            error!("Failed to query database: {}", e);
+            Err(ReturnStatus::new(Status::InternalServerError))
+        }
+    }
+}
 
+/// Returns the map info for a specific map
+#[get("/map/<mapid>")]
+fn map_info(db: DbConn, mapid: i32) -> Result<Json<Map>, ReturnStatus> {
+    match map_from_id(&db, mapid) {
+        Ok(map) => {
+            Ok(Json(map))
+        }
+        Err(diesel::result::Error::NotFound) => {
+            Err(ReturnStatus::new(Status::BadRequest).with_message("Map not found for specified id".to_string()))
+        }
+        Err(e) => {
+            error!("Failed to query database: {}", e);
+            Err(ReturnStatus::new(Status::InternalServerError))
+        }
+    }
+}
+
+/// Returns the top score of a user on the specified map.
+#[get("/user/<userid>/scores/<mapid>")]
+fn user_score_for_map(db: DbConn, userid: i32, mapid: i32) -> Result<Json<Score>, ReturnStatus> {
+    let season = 1;
+    match score_from_user_map(&db, userid, mapid, season) {
+        Ok(score) => {
+            Ok(Json(score))
+        }
+        Err(diesel::result::Error::NotFound) => {
+            Err(ReturnStatus::new(Status::BadRequest).with_message("User has no score on this map".to_string()))
+        }
+        Err(e) => {
+            error!("Failed to query database: {}", e);
+            Err(ReturnStatus::new(Status::InternalServerError))
+        }
+    }
+}
+
+/// Returns the list of maps
+#[get("/map")]
+fn list_maps(db: DbConn) -> Result<Json<Vec<Map>>, ReturnStatus> {
+    match map_list(&db) {
+        Ok(maps) => {
+            Ok(Json(maps))
+        }
+        Err(e) => {
+            error!("Failed to query database: {}", e);
+            Err(ReturnStatus::new(Status::InternalServerError))
+        }
+    }
+}

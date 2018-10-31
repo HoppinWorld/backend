@@ -60,7 +60,7 @@ pub struct LoginResult {
     pub token: String,
 }
 
-#[derive(Queryable)]
+#[derive(Queryable, Serialize)]
 pub struct Score {
     pub id: i32,
     pub userid: i32,
@@ -75,9 +75,22 @@ pub struct Score {
     pub seasonid: i32,
 }
 
+/// Score sent for the score listing of a map
+#[derive(Serialize, Debug)]
+pub struct ScoreDisplay {
+    pub userid: i32,
+    pub username: String,
+    pub segment_times: String, // 0.22344,2233.34,..
+    pub strafes: i32,
+    pub jumps: i32,
+    /// Seconds
+    pub total_time: f32,
+}
+
 #[derive(Deserialize)]
 pub struct ScoreInsertRequest {
     pub mapid: i32,
+    /// Abs time when at segment end
     pub segment_times: Vec<f32>,
     pub strafes: i32,
     pub jumps: i32,

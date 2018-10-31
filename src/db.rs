@@ -20,6 +20,13 @@ pub fn user_from_email(db: &DbConn, email: &String) -> DieselResult<User> {
         .first::<User>(&**db)
 }
 
+/// Returns the user associated with the corresponding user id.
+pub fn user_from_id(db: &DbConn, id: i32) -> DieselResult<User> {
+    user::table
+        .filter(user::id.eq(id))
+        .first::<User>(&**db)
+}
+
 pub fn set_user_token(db: &DbConn, user_id: i32, token: &String) -> DieselResult<usize> {
 	diesel::update(
         user::table.filter(user::columns::id.eq(user_id)),
@@ -67,6 +74,10 @@ pub fn map_from_id(db: &DbConn, id: i32) -> DieselResult<Map> {
         .first::<Map>(&**db)
 }
 
+pub fn map_list(db: &DbConn) -> DieselResult<Vec<Map>> {
+    map::table.load::<Map>(&**db)
+}
+
 pub fn score_from_user_map(db: &DbConn, userid: i32, mapid: i32, season: i32) -> DieselResult<Score> {
     score::table
         .filter(score::userid.eq(userid))
@@ -75,7 +86,19 @@ pub fn score_from_user_map(db: &DbConn, userid: i32, mapid: i32, season: i32) ->
         .first::<Score>(&**db)
 }
 
+/// Returns the 25 best scores of a map for a specified season.
+pub fn score_top_from_map(db: &DbConn, mapid: i32, season: i32) -> DieselResult<Vec<Score>> {
+    score::table
+        .filter(score::mapid.eq(mapid))
+        .filter(score::season.eq(season))
+        .order_by(score::total_time)
+        .limit(25)
+        .load::<Score>(&**db)
+}
+
 pub fn score_insert_or_replace(db: &DbConn, score: ScoreInsert) -> DieselResult<usize> {
+    diesel::delete(score::table.filter(score::userid.eq(score.userid)))
+        .execute(&**db)?;
     diesel::replace_into(score::table)
         .values(score)
         .execute(&**db)
