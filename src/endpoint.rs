@@ -8,6 +8,7 @@ use rocket_contrib::Json;
 use rocket::{Outcome, Request};
 use lettre_email::EmailBuilder;
 use lettre::{ClientSecurity, EmailAddress, Envelope, SendableEmail, SmtpClient, Transport, SmtpTransport, SendmailTransport};
+use validator::Validate;
 
 pub struct UserLogged {
     pub user: User,
@@ -104,9 +105,12 @@ pub fn login(login: Json<LoginRequest>, db: DbConn) -> Result<Json<LoginResult>,
 
 /// Registers a new user using `RegisterData` as json.
 /// #Test
-/// curl -X POST -H "Content-Type: application/json" http://127.0.0.1:27015/register -d '{"name":"test", "email":"test@test.com"}'
+/// curl -X POST -H "Content-Type: application/json" https://hoppinworld.net:27015/register -d '{"username":"test", "email":"test@test.com"}'
 #[post("/register", format = "application/json", data = "<register>")]
 pub fn register(db: DbConn, register: Json<UserInsert>) -> Result<(), ReturnStatus> {
+    if let Err(_) = register.validate() {
+        return Err(ReturnStatus::new(Status::BadRequest).with_message("Failed to validate input data".to_string()));
+    }
     match user_add(&db, &*register) {
         Ok(1) => {
             let token = Uuid::new_v4();
@@ -184,12 +188,17 @@ pub fn register(db: DbConn, register: Json<UserInsert>) -> Result<(), ReturnStat
 
 /// Changes the password of a user using the reset token and the new password (`ChangePassword` as json).
 /// #Test
-/// curl -X POST -H "Content-Type: application/json" http://raidable.ddns.net:27015/changepassword -d '{"token":"uuid", "password":"pass"}'
+/// curl -X POST -H "Content-Type: application/json" https://raidable.ddns.net:27015/changepassword -d '{"token":"uuid", "password":"pass"}'
 #[post("/changepassword", format = "application/json", data = "<data>")]
 pub fn change_password(db: DbConn, data: Json<ChangePasswordRequest>) -> Result<(), ReturnStatus> {
+    if data.password.len() < 8 || data.password.len() > 64 {
+        return Err(ReturnStatus::new(Status::BadRequest).with_message("Password must be between 8 and 64 characters.".to_string()));
+    }
+    // TODO: Check expiration date on db
     match user_from_password_reset_token(&db, &data.token)
     {
         Ok(user) => match set_user_password(&db, user.id, &data.password) {
+            // TODO: Remove all ResetPassword entries from db for user.
             Ok(_) => Ok(()),
             Err(e) => {
                 error!("An error occured while changing the user password: {:?}", e);
@@ -198,7 +207,7 @@ pub fn change_password(db: DbConn, data: Json<ChangePasswordRequest>) -> Result<
         },
         Err(diesel::result::Error::NotFound) => {
             info!("Failed attempt to reset password: Token is invalid.");
-            Err(ReturnStatus::new(Status::BadRequest))
+            Err(ReturnStatus::new(Status::BadRequest).with_message("The password reset token is invalid, did it expire?".to_string()))
         }
         Err(e) => {
             error!(
@@ -328,10 +337,28 @@ fn map_scores(db: DbConn, mapid: i32) -> Result<Json<Vec<ScoreDisplay>>, ReturnS
 
 /// Returns the map info for a specific map
 #[get("/map/<mapid>")]
-fn map_info(db: DbConn, mapid: i32) -> Result<Json<Map>, ReturnStatus> {
+fn map_info(db: DbConn, mapid: i32) -> Result<Json<MapDisplay>, ReturnStatus> {
     match map_from_id(&db, mapid) {
         Ok(map) => {
-            Ok(Json(map))
+            // Convert Map to MapDisplay
+            let mapper_name = user_from_id(&db, map.mapper).map(|u| u.username).unwrap_or_else(|_| {
+                error!("Failed to find user from map creator for map id: {}", map.id);
+                String::from("???") // Unknown mapper
+            });
+
+            let map_display = MapDisplay {
+                id: map.id,
+                status: map.status,
+                name: map.name,
+                segment_count: map.segment_count,
+                path: map.path,
+                mapper: map.mapper,
+                mapper_name,
+                difficulty: map.difficulty,
+                categories: map.categories.split(",").map(|e| e.to_string()).collect(),
+                tags: map.tags.split(",").map(|e| e.to_string()).collect(),
+            };
+            Ok(Json(map_display))
         }
         Err(diesel::result::Error::NotFound) => {
             Err(ReturnStatus::new(Status::BadRequest).with_message("Map not found for specified id".to_string()))

@@ -122,4 +122,3 @@ pub fn segment_scores_from_string(data: &String) -> Option<Vec<f32>> {
         Some(try_seg_times.map(|e| e.unwrap()).collect::<Vec<_>>())
     }
 }
-

@@ -22,3 +22,5 @@ chrono = "0.4.4"
 backend_utils = { git = "https://github.com/jojolepro/backend-utils-rs" }
 lettre = { git = "https://github.com/lettre/lettre", rev = "c988b1760ad8179d9e7f3fb8594d2b86cf2a0a49" }
 lettre_email = { git = "https://github.com/lettre/lettre", rev = "c988b1760ad8179d9e7f3fb8594d2b86cf2a0a49" }
+validator = "0.8.0"
+validator_derive = "0.8.0"

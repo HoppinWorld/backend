@@ -20,6 +20,9 @@ extern crate chrono;
 extern crate backend_utils;
 extern crate lettre;
 extern crate lettre_email;
+extern crate validator;
+#[macro_use]
+extern crate validator_derive;
 
 pub use backend_utils::*;
 

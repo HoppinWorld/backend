@@ -5,6 +5,7 @@ use super::schema::*;
 use chrono::prelude::*;
 use diesel::prelude::*;
 
+use validator::Validate;
 
 //use super::schema::user;
 
@@ -17,10 +18,11 @@ pub struct User {
     pub token: Option<String>,
 }
 
-#[derive(Deserialize, Insertable)]
+#[derive(Deserialize, Insertable, Validate)]
 #[table_name = "user"]
 pub struct UserInsert {
     pub username: String,
+    #[validate(email)]
     pub email: String,
 }
 
@@ -125,6 +127,24 @@ pub struct Map {
     /// Maps that get outdated following updates will be deleted from the servers and the path will be null?
     /// not sure if this should be the case.
     pub path: Option<String>,
+    pub mapper: i32,
+    pub difficulty: String,
+    pub categories: String,
+    pub tags: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MapDisplay {
+    pub id: i32,
+    pub status: String,
+    pub name: String,
+    pub segment_count: i32,
+    pub path: Option<String>,
+    pub mapper: i32,
+    pub mapper_name: String,
+    pub difficulty: String,
+    pub categories: Vec<String>,
+    pub tags: Vec<String>,
 }
 
 #[derive(Queryable)]

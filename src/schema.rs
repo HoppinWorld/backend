@@ -13,6 +13,10 @@ table! {
         name -> Varchar,
         segment_count -> Integer,
         path -> Nullable<Varchar>,
+        mapper -> Integer,
+        difficulty -> Varchar,
+        categories -> Varchar,
+        tags -> Varchar,
     }
 }
 
@@ -100,6 +104,7 @@ table! {
     }
 }
 
+joinable!(map -> user (mapper));
 joinable!(password_reset -> user (userid));
 joinable!(replay -> score (scoreid));
 joinable!(score -> map (mapid));
