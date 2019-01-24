@@ -18,12 +18,35 @@ pub struct User {
     pub token: Option<String>,
 }
 
-#[derive(Deserialize, Insertable, Validate)]
+#[derive(Debug, Insertable, Clone)]
 #[table_name = "user"]
 pub struct UserInsert {
     pub username: String,
+    pub email: String,
+}
+
+impl From<RegisterRequest> for UserInsert {
+    fn from(r: RegisterRequest) -> Self {
+        UserInsert {
+            username: r.username,
+            email: r.email,
+        }
+    }
+}
+
+#[derive(Deserialize, Validate, Clone)]
+pub struct RegisterRequest {
+    pub username: String,
     #[validate(email)]
     pub email: String,
+    pub recaptcha: String,
+}
+
+#[derive(Deserialize, Validate, Clone)]
+pub struct PasswordResetRequest {
+    #[validate(email)]
+    pub email: String,
+    pub recaptcha: String,
 }
 
 

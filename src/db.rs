@@ -1,3 +1,4 @@
+use chrono::offset::Local;
 use backend_utils::*;
 use super::model::*;
 use super::schema::*;
@@ -67,6 +68,18 @@ pub fn user_from_password_reset_token(db: &DbConn, token: &String) -> DieselResu
         .first::<(PasswordReset, User)>(&**db)
         .map(|t| t.1)
 }
+
+pub fn remove_password_reset_for_user(db: &DbConn, user: i32) -> DieselResult<usize> {
+    diesel::delete(password_reset::table.filter(password_reset::userid.eq(user)))
+        .execute(&**db)
+}
+
+pub fn remove_expired_password_reset(db: &DbConn) -> DieselResult<usize> {
+    let now = Local::now().naive_local();
+    diesel::delete(password_reset::table.filter(password_reset::valid_until.lt(now)))
+        .execute(&**db)
+}
+
 
 pub fn map_from_id(db: &DbConn, id: i32) -> DieselResult<Map> {
     map::table

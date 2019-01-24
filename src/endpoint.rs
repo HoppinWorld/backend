@@ -1,13 +1,16 @@
+use mailgun_v3::email::*;
+use mailgun_v3::*;
 use rocket::request::FromRequest;
 use backend_utils::*;
 use super::model::*;
 use super::db::*;
+use std::env;
 use uuid::Uuid;
 use rocket::http::Status;
-use rocket_contrib::Json;
+use rocket_contrib::json::Json;
 use rocket::{Outcome, Request};
-use lettre_email::EmailBuilder;
-use lettre::{ClientSecurity, EmailAddress, Envelope, SendableEmail, SmtpClient, Transport, SmtpTransport, SendmailTransport};
+//use lettre_email::EmailBuilder;
+//use lettre::{ClientSecurity, EmailAddress, Envelope, SendableEmail, SmtpClient, Transport, SmtpTransport, SendmailTransport};
 use validator::Validate;
 
 pub struct UserLogged {
@@ -107,80 +110,134 @@ pub fn login(login: Json<LoginRequest>, db: DbConn) -> Result<Json<LoginResult>,
 /// #Test
 /// curl -X POST -H "Content-Type: application/json" https://hoppinworld.net:27015/register -d '{"username":"test", "email":"test@test.com"}'
 #[post("/register", format = "application/json", data = "<register>")]
-pub fn register(db: DbConn, register: Json<UserInsert>) -> Result<(), ReturnStatus> {
+pub fn register(db: DbConn, register: Json<RegisterRequest>, req: UserIp) -> Result<(), ReturnStatus> {
     if let Err(_) = register.validate() {
-        return Err(ReturnStatus::new(Status::BadRequest).with_message("Failed to validate input data".to_string()));
+        return Err(ReturnStatus::new(Status::BadRequest).with_message("Failed to validate input data.".to_string()));
     }
-    match user_add(&db, &*register) {
-        Ok(1) => {
-            let token = Uuid::new_v4();
-            let limit = instant_in_days(1);
-            // Unwrap should be safe, as we inserted into the db just a split second ago.
-            let user = user_from_email(&db, &register.email).unwrap();
-            let password_reset = PasswordResetInsert {
-                token: token.to_string().clone(),
-                userid: user.id,
-                valid_until: limit.naive_local(),
-            };
-            info!(
-                "[TEMPORARY] Generated reset password token: {:?}",
-                password_reset
-            );
-            match password_reset_insert_or_replace(&db, password_reset) {
+    let key = env::var("RECAPTCHA_KEY").expect("RECAPTCHA_KEY must be set!");
+    match recaptcha::verify(&key, &register.recaptcha, req.0.as_ref()) {
+        Ok(_) => {
+            match user_add(&db, &UserInsert::from(register.clone())) {
+                Ok(1) => {
+                    let token = Uuid::new_v4();
+                    let limit = instant_in_days(1);
+                    // Unwrap should be safe, as we inserted into the db just a split second ago.
+                    let user = user_from_email(&db, &register.email).unwrap();
+                    let password_reset = PasswordResetInsert {
+                        token: token.to_string().clone(),
+                        userid: user.id,
+                        valid_until: limit.naive_local(),
+                    };
+                    info!(
+                        "[TEMPORARY] Generated reset password token: {:?}",
+                        password_reset
+                    );
+                    match password_reset_insert_or_replace(&db, password_reset) {
+                        Ok(_) => {
+                            let key = env::var("MAILGUN_KEY").expect("MAILGUN_KEY must be set!");
+                            let creds = Credentials::new(&key, "hoppinworld.net");
+                            let from = EmailAddress::name_address("HoppinWorld", "noreply@hoppinworld.net");
+                            let msg = Message {
+                                to: vec![EmailAddress::address("jojolepromain@gmail.com")],
+                                cc: vec![],
+                                bcc: vec![],
+                                subject: String::from("HoppinWorld Register"),
+                                body: MessageBody::Text(format!("Here's the password reset link: https://hoppinworld.net/setpassword/{}",token.to_string())),
+                                options: vec![],
+                            };
+                            match send_email(&creds, &from, msg) {
+                                Ok(_send_res) => {
+                                    Ok(())
+                                }
+                                Err(e) => {
+                                    error!("Failed to send register email: {:?}", e);
+                                    Err(ReturnStatus::new(Status::InternalServerError))
+                                }
+                            }
+                        },
+                        Err(e) => {
+                            error!("Failed to create password reset entry: {:?}", e);
+                            Err(ReturnStatus::new(Status::InternalServerError))
+                        }
+                    }
+                },
                 Ok(_) => {
-                    // Send email
-                    let email = EmailBuilder::new()
-                        // Addresses can be specified by the tuple (email, alias)
-                        //.to("jojolepromain@gmail.com")
-                        // TODO: Fix email sending. My ip raidable.ddns.net might be blocked
-                        .to("jojolepro@hoppinworld.net")
-                        // ... or by an address only
-                        .from("noreply@hoppinworld.net")
-                        .subject("Hi, Hello world")
-                        .text(format!("Here's the password reset token: {}",token.to_string()))
-                        //.html()
-                        .build()
-                        .unwrap();
-
-                    /*let mut mailer = SmtpClient::simple_builder("server.tld").unwrap()
-                        // Set the name sent during EHLO/HELO, default is `localhost`
-                        .hello_name(ClientId::Domain("my.hostname.tld".to_string()))
-                        // Add credentials for authentication
-                        .credentials(Credentials::new("username".to_string(), "password".to_string()))
-                        // Enable SMTPUTF8 if the server supports it
-                        .smtp_utf8(true)
-                        // Configure expected authentication mechanism
-                        .authentication_mechanism(Mechanism::Plain)
-                        // Enable connection reuse
-                        .connection_reuse(ConnectionReuseParameters::ReuseUnlimited).build();*/
-                    //let mut mailer = SmtpClient::new_unencrypted_localhost().unwrap().transport();
-                    //let mailer = SmtpTransport::simple_builder("hoppinworld.net");
-                    //let mut mailer = SendmailTransport::new();
-                    //let mailer = SmtpClient::new_simple("127.0.0.1")
-                    let mailer = SmtpClient::new("127.0.0.1:25", ClientSecurity::None)
-                        .unwrap()
-                        .transport()
-                        .send(email.into())
-                        .unwrap();
-                    //mailer.send(email.into()).expect("failed to send mail");
-                    //mailer.close();
-                    Ok(())
+                    // TODO: Duplicate email != 500
+                    error!("1)Failed to register new user");
+                    Err(ReturnStatus::new(Status::InternalServerError))
                 },
                 Err(e) => {
-                    error!("Failed to create password reset entry: {:?}", e);
+                    // TODO: Duplicate email != 500
+                    error!("2)Failed to register new user: {:?}", e);
                     Err(ReturnStatus::new(Status::InternalServerError))
                 }
             }
-        },
+        }
+        Err(_) => {
+            Err(ReturnStatus::new(Status::Unauthorized).with_message("Recaptcha check failed. Please try again.".to_string()))
+        }
+    }
+}
+
+
+#[post("/passreset", format = "application/json", data = "<passreset>")]
+pub fn request_password_reset(db: DbConn, passreset: Json<PasswordResetRequest>, req: UserIp) -> Result<(), ReturnStatus> {
+    if let Err(_) = passreset.validate() {
+        return Err(ReturnStatus::new(Status::BadRequest).with_message("Failed to validate input data.".to_string()));
+    }
+
+    let key = env::var("RECAPTCHA_KEY").expect("RECAPTCHA_KEY must be set!");
+
+    match recaptcha::verify(&key, &passreset.recaptcha, req.0.as_ref()) {
         Ok(_) => {
-            // TODO: Duplicate email != 500
-            error!("1)Failed to register new user");
-            Err(ReturnStatus::new(Status::InternalServerError))
-        },
-        Err(e) => {
-            // TODO: Duplicate email != 500
-            error!("2)Failed to register new user: {:?}", e);
-            Err(ReturnStatus::new(Status::InternalServerError))
+            match user_from_email(&db, &passreset.email) {
+                Ok(user) => {
+                    let token = Uuid::new_v4();
+                    let limit = instant_in_days(1);
+                    let password_reset = PasswordResetInsert {
+                        token: token.to_string().clone(),
+                        userid: user.id,
+                        valid_until: limit.naive_local(),
+                    };
+                    // Unwrap should be safe, as we inserted into the db just a split second ago.
+                    match password_reset_insert_or_replace(&db, password_reset) {
+                        Ok(_) => {
+                            let key = env::var("MAILGUN_KEY").expect("MAILGUN_KEY must be set!");
+                            let creds = Credentials::new(&key, "hoppinworld.net");
+                            let from = EmailAddress::name_address("HoppinWorld", "noreply@hoppinworld.net");
+                            let msg = Message {
+                                to: vec![EmailAddress::address("jojolepromain@gmail.com")],
+                                cc: vec![],
+                                bcc: vec![],
+                                subject: String::from("HoppinWorld Password Reset"),
+                                body: MessageBody::Text(format!("Here's the password reset link: https://hoppinworld.net/setpassword/{}",token.to_string())),
+                                options: vec![],
+                            };
+                            match send_email(&creds, &from, msg) {
+                                Ok(_send_res) => {
+                                    Ok(())
+                                }
+                                Err(e) => {
+                                    error!("Failed to send password reset email: {:?}", e);
+                                    Err(ReturnStatus::new(Status::InternalServerError))
+                                }
+                            }
+                        },
+                        Err(e) => {
+                            error!("Failed to create password reset entry: {:?}", e);
+                            Err(ReturnStatus::new(Status::InternalServerError))
+                        }
+                    }
+                },
+                Err(e) => {
+                    // TODO: Duplicate email != 500
+                    error!("Failed to find user for email {} err: {:?}", passreset.email, e);
+                    Err(ReturnStatus::new(Status::InternalServerError))
+                }
+            }
+        }
+        Err(_) => {
+            Err(ReturnStatus::new(Status::Unauthorized).with_message("Recaptcha check failed. Please try again.".to_string()))
         }
     }
 }
@@ -194,15 +251,27 @@ pub fn change_password(db: DbConn, data: Json<ChangePasswordRequest>) -> Result<
     if data.password.len() < 8 || data.password.len() > 64 {
         return Err(ReturnStatus::new(Status::BadRequest).with_message("Password must be between 8 and 64 characters.".to_string()));
     }
-    // TODO: Check expiration date on db
+
+    // Delete expired password reset entries
+    if let Err(e) = remove_expired_password_reset(&db) {
+        error!("Failed to delete expired password reset entries: {:?}", e);
+    }
+
     match user_from_password_reset_token(&db, &data.token)
     {
-        Ok(user) => match set_user_password(&db, user.id, &data.password) {
-            // TODO: Remove all ResetPassword entries from db for user.
-            Ok(_) => Ok(()),
-            Err(e) => {
-                error!("An error occured while changing the user password: {:?}", e);
-                Err(ReturnStatus::new(Status::InternalServerError))
+        Ok(user) => {
+
+            match set_user_password(&db, user.id, &data.password) {
+                Ok(_) => {
+                    if let Err(e) = remove_password_reset_for_user(&db, user.id) {
+                        error!("Failed to delete old password reset records for user {:?} with err: {:?}", user, e);
+                    }
+                    Ok(())
+                },
+                Err(e) => {
+                    error!("An error occured while changing the user password: {:?}", e);
+                    Err(ReturnStatus::new(Status::InternalServerError))
+                }
             }
         },
         Err(diesel::result::Error::NotFound) => {
@@ -220,7 +289,7 @@ pub fn change_password(db: DbConn, data: Json<ChangePasswordRequest>) -> Result<
 }
 
 #[get("/logout")]
-fn logout(user: UserLogged, db: DbConn) -> Result<(), ReturnStatus> {
+pub fn logout(user: UserLogged, db: DbConn) -> Result<(), ReturnStatus> {
     match set_user_token(&db, user.user.id, &"".to_string())
     {
         Ok(_) => Ok(()),
@@ -236,7 +305,7 @@ fn logout(user: UserLogged, db: DbConn) -> Result<(), ReturnStatus> {
 
 
 #[post("/submitscore", format = "application/json", data = "<data>")]
-fn submit_score(user: UserLogged, db: DbConn, data: Json<ScoreInsertRequest>) -> Result<Json<bool>, ReturnStatus> {
+pub fn submit_score(user: UserLogged, db: DbConn, data: Json<ScoreInsertRequest>) -> Result<Json<bool>, ReturnStatus> {
     let userid = user.user.id;
     let season = 1;
 
@@ -308,7 +377,7 @@ fn submit_score(user: UserLogged, db: DbConn, data: Json<ScoreInsertRequest>) ->
 
 /// Returns top 25 scores on a map
 #[get("/map/<mapid>/scores")]
-fn map_scores(db: DbConn, mapid: i32) -> Result<Json<Vec<ScoreDisplay>>, ReturnStatus> {
+pub fn map_scores(db: DbConn, mapid: i32) -> Result<Json<Vec<ScoreDisplay>>, ReturnStatus> {
     let season = 1;
     match score_top_from_map(&db, mapid, season) {
         Ok(scores) => {
@@ -337,7 +406,7 @@ fn map_scores(db: DbConn, mapid: i32) -> Result<Json<Vec<ScoreDisplay>>, ReturnS
 
 /// Returns the map info for a specific map
 #[get("/map/<mapid>")]
-fn map_info(db: DbConn, mapid: i32) -> Result<Json<MapDisplay>, ReturnStatus> {
+pub fn map_info(db: DbConn, mapid: i32) -> Result<Json<MapDisplay>, ReturnStatus> {
     match map_from_id(&db, mapid) {
         Ok(map) => {
             // Convert Map to MapDisplay
@@ -372,7 +441,7 @@ fn map_info(db: DbConn, mapid: i32) -> Result<Json<MapDisplay>, ReturnStatus> {
 
 /// Returns the top score of a user on the specified map.
 #[get("/user/<userid>/scores/<mapid>")]
-fn user_score_for_map(db: DbConn, userid: i32, mapid: i32) -> Result<Json<Score>, ReturnStatus> {
+pub fn user_score_for_map(db: DbConn, userid: i32, mapid: i32) -> Result<Json<Score>, ReturnStatus> {
     let season = 1;
     match score_from_user_map(&db, userid, mapid, season) {
         Ok(score) => {
@@ -390,7 +459,7 @@ fn user_score_for_map(db: DbConn, userid: i32, mapid: i32) -> Result<Json<Score>
 
 /// Returns the list of maps
 #[get("/map")]
-fn list_maps(db: DbConn) -> Result<Json<Vec<Map>>, ReturnStatus> {
+pub fn list_maps(db: DbConn) -> Result<Json<Vec<Map>>, ReturnStatus> {
     match map_list(&db) {
         Ok(maps) => {
             Ok(Json(maps))
