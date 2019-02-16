@@ -51,6 +51,7 @@ fn main() {
                 list_maps,
                 map_info,
                 request_password_reset,
+                validate_token,
             ],
         )
         .attach(options)

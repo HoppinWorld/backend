@@ -135,10 +135,10 @@ pub fn register(db: DbConn, register: Json<RegisterRequest>, req: UserIp) -> Res
                     match password_reset_insert_or_replace(&db, password_reset) {
                         Ok(_) => {
                             let key = env::var("MAILGUN_KEY").expect("MAILGUN_KEY must be set!");
-                            let creds = Credentials::new(&key, "hoppinworld.net");
-                            let from = EmailAddress::name_address("HoppinWorld", "noreply@hoppinworld.net");
+                            let creds = Credentials::new(&key, "mail.hoppinworld.net");
+                            let from = EmailAddress::name_address("HoppinWorld", "noreply@mail.hoppinworld.net");
                             let msg = Message {
-                                to: vec![EmailAddress::address("jojolepromain@gmail.com")],
+                                to: vec![EmailAddress::address(&register.email)],
                                 cc: vec![],
                                 bcc: vec![],
                                 subject: String::from("HoppinWorld Register"),
@@ -203,10 +203,10 @@ pub fn request_password_reset(db: DbConn, passreset: Json<PasswordResetRequest>,
                     match password_reset_insert_or_replace(&db, password_reset) {
                         Ok(_) => {
                             let key = env::var("MAILGUN_KEY").expect("MAILGUN_KEY must be set!");
-                            let creds = Credentials::new(&key, "hoppinworld.net");
-                            let from = EmailAddress::name_address("HoppinWorld", "noreply@hoppinworld.net");
+                            let creds = Credentials::new(&key, "mail.hoppinworld.net");
+                            let from = EmailAddress::name_address("HoppinWorld", "noreply@mail.hoppinworld.net");
                             let msg = Message {
-                                to: vec![EmailAddress::address("jojolepromain@gmail.com")],
+                                to: vec![EmailAddress::address(&passreset.email)],
                                 cc: vec![],
                                 bcc: vec![],
                                 subject: String::from("HoppinWorld Password Reset"),
@@ -467,6 +467,26 @@ pub fn list_maps(db: DbConn) -> Result<Json<Vec<Map>>, ReturnStatus> {
         Err(e) => {
             error!("Failed to query database: {}", e);
             Err(ReturnStatus::new(Status::InternalServerError))
+        }
+    }
+}
+
+/// Checks if a given user token is valid
+#[post("/validatetoken", format = "application/json", data = "<token>")]
+pub fn validate_token(token: Json<String>, db: DbConn) -> Result<Json<bool>, ReturnStatus> {
+    // Pass from email
+    let user = user_from_token(&db, &token);
+
+    match user.as_ref() {
+        Ok(_) => {
+            Ok(Json(true))
+        }
+        Err(diesel::result::Error::NotFound) => {
+            Ok(Json(false))
+        }
+        Err(e) => {
+            error!("Failed to get user from email: {:?}", e);
+            return Err(ReturnStatus::new(Status::InternalServerError));
         }
     }
 }
